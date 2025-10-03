@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 
-import argparse 
+import argparse
 import codecs
 import concurrent.futures
 import http.client
 import http.server
 import json
 import logging
+import os
 import re
 import sys
 import time
@@ -224,9 +225,10 @@ def main() -> None:
 	parser = argparse.ArgumentParser(description='Exports your Spotify playlists. By default, opens a browser window '
 	                                           + 'to authorize the Spotify Web API, but you can also manually specify'
 	                                           + ' an OAuth token with the --token option.')
+	parser.add_argument('--client-id', metavar='CLIENT_ID', help='Spotify application client ID (can also use SPOTIFY_CLIENT_ID env var)')
 	parser.add_argument('--token', metavar='OAUTH_TOKEN', help='use a Spotify OAuth token (requires the '
 	                                                         + '`playlist-read-private` permission)')
-	parser.add_argument('--dump', default='playlists', 
+	parser.add_argument('--dump', default='playlists',
 	                    choices=['liked,playlists', 'playlists,liked', 'playlists', 'liked', 'top', 'top,playlists', 'playlists,top', 'top,liked', 'liked,top', 'top,playlists,liked', 'playlists,top,liked', 'liked,top,playlists'],
 	                    help='dump playlists, liked songs, top items, or combinations (default: playlists)')
 	parser.add_argument('--top-type', default='both', choices=['artists', 'tracks', 'both'],
@@ -272,11 +274,24 @@ def main() -> None:
 	if 'top' in args.dump:
 		scopes.append('user-top-read')
 	
+	# Get client ID from args or environment variable
+	client_id = args.client_id or os.environ.get('SPOTIFY_CLIENT_ID')
+
 	# Log into the Spotify API.
 	if args.token:
 		spotify = SpotifyAPI(args.token)
 	else:
-		spotify = SpotifyAPI.authorize(client_id='5c098bcc800e45d49e476265bc9b6934',
+		if not client_id:
+			log_message('Error: Spotify client ID is required for OAuth authorization.', 'red bold')
+			log_message('Provide it via --client-id argument or SPOTIFY_CLIENT_ID environment variable.', 'yellow')
+			log_message('To create a Spotify app and get a client ID:', 'cyan')
+			log_message('1. Go to https://developer.spotify.com/dashboard', 'cyan')
+			log_message('2. Create a new app', 'cyan')
+			log_message('3. Add http://127.0.0.1:43019/redirect as a redirect URI', 'cyan')
+			log_message('4. Copy the Client ID from your app settings', 'cyan')
+			sys.exit(1)
+
+		spotify = SpotifyAPI.authorize(client_id=client_id,
 		                               scope=' '.join(scopes))
 	
 	# Get the ID of the logged in user.
